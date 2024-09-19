@@ -15,8 +15,21 @@ TFT_eSPI tft = TFT_eSPI();
 
 char *filename = "/dac.gif";   // Change to load other gif files in images/GIF
 
+//-------------------------[web server]--------------------------------------
+#include <WiFi.h>          // Thư viện WiFi để tạo Access Point
+#include <WebServer.h>      // Thư viện WebServer để tạo web server
+
+const char *ssid = "ESP32-Access-Point";  // Tên mạng WiFi mà ESP32 sẽ phát ra
+const char *password = "12345678";        // Mật khẩu của mạng WiFi
+//web 192.168.4.1
+WebServer server(80);                     // Khởi tạo web server trên cổng 80
+
+//-------------------------
 void setup()
 {
+  // Khởi tạo WiFi AP trước tiên
+  setupWiFiAP();
+    
   Serial.begin(115200);
   tft.begin();
   tft.setRotation(2); // Adjust Rotation of your screen (0-3)
@@ -29,7 +42,7 @@ void setup()
     Serial.println("SD card initialization failed!");
     return;
   }
-  
+
   // Initialize SPIFFS
   Serial.println("Initialize SPIFFS...");
   if (!SPIFFS.begin(true))
@@ -42,10 +55,19 @@ void setup()
   // Initialize the GIF
   Serial.println("Starting animation...");
   gif.begin(BIG_ENDIAN_PIXELS);
+
+  // Khởi tạo WebServer
+  server.on("/", handleRoot);       // Xử lý yêu cầu đến trang chủ "/"
+  server.on("/get", handleGetFiles); // Xử lý yêu cầu đến "/get" để lấy danh sách file
+  server.begin();                   // Bắt đầu WebServer
+  Serial.println("Web server started");
+
 }
 
 void loop()
 {
+  server.handleClient(); // Xử lý các yêu cầu HTTP từ web server
+
   if (gif.open(filename, fileOpen, fileClose, fileRead, fileSeek, GIFDraw))
   {
     tft.startWrite(); // The TFT chip slect is locked low
@@ -155,3 +177,42 @@ int32_t fileSeek(GIFFILE *pFile, int32_t iPosition)
   gifFile.seek(pFile->iPos);
   return iPosition;
 }
+
+
+//---------------[wifi]
+void setupWiFiAP() {
+  Serial.println("Setting AP (Access Point)...");
+  WiFi.softAP(ssid, password);            // Tạo Access Point với tên và mật khẩu đã định
+
+  IPAddress IP = WiFi.softAPIP();          // Lấy địa chỉ IP của ESP32 sau khi phát WiFi
+  Serial.print("AP IP address: ");
+  Serial.println(IP);
+}
+void handleRoot() {
+  String html = "<html><body><h1>SD Card File List</h1>";
+  html += "<form action=\"/get\" method=\"GET\">";
+  html += "<button type=\"submit\">Get Files</button>";
+  html += "</form>";
+  html += "</body></html>";
+
+  server.send(200, "text/html", html);
+}
+
+void handleGetFiles() {
+  String fileList = "<html><body><h1>Files on SD Card</h1><ul>";
+
+  File root = SD.open("/");
+  File file = root.openNextFile();
+
+  while (file) {
+    fileList += "<li>";
+    fileList += file.name();
+    fileList += "</li>";
+    file = root.openNextFile();
+  }
+
+  fileList += "</ul></body></html>";
+  server.send(200, "text/html", fileList);
+}
+
+///-----------------
