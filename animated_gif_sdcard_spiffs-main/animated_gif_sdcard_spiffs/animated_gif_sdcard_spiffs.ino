@@ -13,7 +13,8 @@ AnimatedGIF gif;
 File gifFile;              // Global File object for the GIF file
 TFT_eSPI tft = TFT_eSPI(); 
 
-const char *filename = "/x_wing.gif";   // Change to load other gif files in images/GIF
+char *filename = "/dac.gif";   // Change to load other gif files in images/GIF
+
 void setup()
 {
   Serial.begin(115200);
@@ -28,13 +29,49 @@ void setup()
     Serial.println("SD card initialization failed!");
     return;
   }
-
+  
   // Initialize SPIFFS
   Serial.println("Initialize SPIFFS...");
   if (!SPIFFS.begin(true))
   {
     Serial.println("SPIFFS initialization failed!");
   }
+
+  //copyGifFromSDtoSPIFFS(filename);
+
+  // Initialize the GIF
+  Serial.println("Starting animation...");
+  gif.begin(BIG_ENDIAN_PIXELS);
+}
+
+void loop()
+{
+  if (gif.open(filename, fileOpen, fileClose, fileRead, fileSeek, GIFDraw))
+  {
+    tft.startWrite(); // The TFT chip slect is locked low
+    while (gif.playFrame(true, NULL))
+    {
+    }
+    gif.close();
+    tft.endWrite(); // Release TFT chip select for the SD Card Reader
+  }
+}
+void copyGifFromSDtoSPIFFS(char *filename)
+{
+  // // Initialize SD card
+  // Serial.println("SD card initialization...");
+  // if (!SD.begin(SD_CS_PIN))
+  // {
+  //   Serial.println("SD card initialization failed!");
+  //   return;
+  // }
+
+  // // Initialize SPIFFS
+  // Serial.println("Initialize SPIFFS...");
+  // if (!SPIFFS.begin(true))
+  // {
+  //   Serial.println("SPIFFS initialization failed!");
+  // }
 
   // Reformmating the SPIFFS to have space if a large GIF is loaded
   // You could run out of SPIFFS storage space if you load more than one image or a large GIF
@@ -72,25 +109,9 @@ void setup()
 
   spiffsFile.close();
   sdFile.close();
+  // Serial.println("SPIFFS usaged: " + (SPIFFS.usedBytes() - SPIFFS.totalBytes())/SPIFFS.totalBytes() *100);
 
-  // Initialize the GIF
-  Serial.println("Starting animation...");
-  gif.begin(BIG_ENDIAN_PIXELS);
 }
-
-void loop()
-{
-  if (gif.open(filename, fileOpen, fileClose, fileRead, fileSeek, GIFDraw))
-  {
-    tft.startWrite(); // The TFT chip slect is locked low
-    while (gif.playFrame(true, NULL))
-    {
-    }
-    gif.close();
-    tft.endWrite(); // Release TFT chip select for the SD Card Reader
-  }
-}
-
 // Callbacks for file operations for the Animated GIF Lobrary
 void *fileOpen(const char *filename, int32_t *pFileSize)
 {
