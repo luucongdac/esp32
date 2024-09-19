@@ -26,7 +26,7 @@
  See more at http://www.dsbird.org.uk
  
 */
-
+#include <EEPROM.h>
 #include <WiFi.h>              //Built-in
 #include <ESP32WebServer.h>    //https://github.com/Pedroalbuquerque/ESP32WebServer download and place in your Libraries folder
 #include <ESPmDNS.h>
@@ -88,6 +88,10 @@ void setup(void)
     SD_present = true; 
   }
   
+  // Khởi động EEPROM với kích thước (ví dụ: 512 bytes)
+  EEPROM.begin(512);
+  // Đọc giá trị từ EEPROM
+  readFileGifFromEEPROM();
 
   Serial.begin(115200);
   tft.begin();
@@ -160,22 +164,21 @@ void SD_dir()
       {
         Order.remove(0,8);
         CopyGiffromSDtoFlashAndDisplay("/" + Order);
-        Serial.println("/" + Order);
+        Serial.println("Display GIF /" + Order);
       }
 
       if (Order.indexOf("download_")>=0)
       {
         Order.remove(0,9);
-        // SD_file_download(Order);
-        CopyGiffromSDtoFlashAndDisplay("/" + Order);
-        Serial.println(Order);
+        SD_file_download(Order);
+        Serial.println("Download file: " + Order);
       }
   
       if ((server.arg(0)).indexOf("delete_")>=0)
       {
         Order.remove(0,7);
         SD_file_delete(Order);
-        Serial.println(Order);
+        Serial.println("Delete file: " + Order);
       }
     }
 
@@ -258,6 +261,11 @@ void printDirectory(const char * dirname, uint8_t levels)
       webpage += F("<button type='submit' name='delete'"); 
       webpage += F("' value='"); webpage +="delete_"+String(file.name()); webpage +=F("'>Delete</button>");
       webpage += "</td>";
+      webpage += "<td>";
+      webpage += F("<FORM action='/' method='post'>"); 
+      webpage += F("<button type='submit' name='display'"); 
+      webpage += F("' value='"); webpage +="display_"+String(file.name()); webpage +=F("'>Display</button>");
+      webpage += "</td>";      
       webpage += "</tr>";
 
     }
@@ -272,6 +280,8 @@ void printDirectory(const char * dirname, uint8_t levels)
 void CopyGiffromSDtoFlashAndDisplay(String filename_)
 {
   strcpy(FileGif, filename_.c_str()); 
+    // Lưu giá trị mới vào EEPROM
+  saveFileGifToEEPROM();
   copyGifFromSDtoSPIFFS(FileGif);
 }
 
@@ -431,6 +441,20 @@ String file_size(int bytes)
 }
 
 //===================================[fore led gif]=============
+void saveFileGifToEEPROM() {
+  // Xóa bộ nhớ EEPROM
+  for (int i = 0; i < 100; i++) {
+    EEPROM.write(i, FileGif[i]);
+  }
+  EEPROM.commit(); // Đảm bảo ghi dữ liệu vào EEPROM
+}
+
+void readFileGifFromEEPROM() {
+  for (int i = 0; i < 100; i++) {
+    FileGif[i] = EEPROM.read(i);
+  }
+}
+
 ///-----------------
 void copyGifFromSDtoSPIFFS(char *filename)
 {
