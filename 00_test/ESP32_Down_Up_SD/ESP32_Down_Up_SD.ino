@@ -56,7 +56,8 @@ AnimatedGIF gif;
 File gifFile;              // Global File object for the GIF file
 TFT_eSPI tft = TFT_eSPI(); 
 
-char *filename = "/dac.gif";   // Change to load other gif files in images/GIF
+
+char FileGif[100] = "/dac.gif";    // Change to load other gif files in images/GIF
 
 /*********  SETUP  **********/
 
@@ -108,7 +109,7 @@ void setup(void)
     Serial.println("SPIFFS initialization failed!");
   }
 
-  //copyGifFromSDtoSPIFFS(filename);
+  //copyGifFromSDtoSPIFFS(FileGif);
 
   // Initialize the GIF
   Serial.println("Starting animation...");
@@ -130,7 +131,7 @@ void loop(void)
 {
   server.handleClient(); //Listen for client connections
 
-  if (gif.open(filename, fileOpen, fileClose, fileRead, fileSeek, GIFDraw))
+  if (gif.open(FileGif, fileOpen, fileClose, fileRead, fileSeek, GIFDraw))
   {
     tft.startWrite(); // The TFT chip slect is locked low
     while (gif.playFrame(true, NULL))
@@ -154,11 +155,19 @@ void SD_dir()
   
       String Order = server.arg(0);
       Serial.println(Order);
-      
+
+      if (Order.indexOf("display_")>=0)
+      {
+        Order.remove(0,8);
+        CopyGiffromSDtoFlashAndDisplay("/" + Order);
+        Serial.println("/" + Order);
+      }
+
       if (Order.indexOf("download_")>=0)
       {
         Order.remove(0,9);
-        SD_file_download(Order);
+        // SD_file_download(Order);
+        CopyGiffromSDtoFlashAndDisplay("/" + Order);
         Serial.println(Order);
       }
   
@@ -258,6 +267,12 @@ void printDirectory(const char * dirname, uint8_t levels)
   file.close();
 
  
+}
+
+void CopyGiffromSDtoFlashAndDisplay(String filename_)
+{
+  strcpy(FileGif, filename_.c_str()); 
+  copyGifFromSDtoSPIFFS(FileGif);
 }
 
 //Download a file from the SD, it is called in void SD_dir()
