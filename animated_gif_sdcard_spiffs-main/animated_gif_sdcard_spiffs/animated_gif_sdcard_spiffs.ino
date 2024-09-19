@@ -56,9 +56,10 @@ void setup()
   Serial.println("Starting animation...");
   gif.begin(BIG_ENDIAN_PIXELS);
 
-  // Khởi tạo WebServer
-  server.on("/", handleRoot);       // Xử lý yêu cầu đến trang chủ "/"
-  server.on("/get", handleGetFiles); // Xử lý yêu cầu đến "/get" để lấy danh sách file
+  // Cấu hình các đường dẫn của web server
+  server.on("/", handleRoot);          // Trang chủ
+  server.on("/upload", HTTP_POST, []() { server.send(200); }, handleFileUpload); // Xử lý upload file
+  server.on("/get", handleGetFiles);   // Hiển thị danh sách file
   server.begin();                   // Bắt đầu WebServer
   Serial.println("Web server started");
 
@@ -189,14 +190,56 @@ void setupWiFiAP() {
   Serial.println(IP);
 }
 void handleRoot() {
-  String html = "<html><body><h1>SD Card File List</h1>";
-  html += "<form action=\"/get\" method=\"GET\">";
-  html += "<button type=\"submit\">Get Files</button>";
+  String html = "<html><body><h1>ESP32 File Management</h1>";
+
+  // Form upload file
+  html += "<form method='POST' action='/upload' enctype='multipart/form-data'>";
+  html += "<input type='file' name='upload'>";
+  html += "<input type='submit' value='Upload File'>";
+  html += "</form><br>";
+
+  // Nút xem danh sách file
+  html += "<form action='/get' method='GET'>";
+  html += "<button type='submit'>Show Files</button>";
   html += "</form>";
+
   html += "</body></html>";
 
   server.send(200, "text/html", html);
 }
+
+
+void handleFileUpload() {
+  HTTPUpload& upload = server.upload();
+
+  if (upload.status == UPLOAD_FILE_START) {
+    Serial.printf("Upload File Start: %s\n", upload.filename.c_str());
+
+    // Mở file trên thẻ SD để lưu dữ liệu
+    File file = SD.open("/" + upload.filename, FILE_WRITE);
+    if (!file) {
+      Serial.println("Failed to open file for writing");
+      server.send(500, "text/plain", "Failed to open file for writing");
+      return;
+    }
+    file.close();
+  } else if (upload.status == UPLOAD_FILE_WRITE) {
+    Serial.printf("Uploading... Size: %u\n", upload.currentSize);
+    File file = SD.open("/" + upload.filename, FILE_APPEND);
+    if (file) {
+      file.write(upload.buf, upload.currentSize);  // Ghi dữ liệu vào file
+      file.close();
+    } else {
+      Serial.println("Failed to open file for appending");
+      server.send(500, "text/plain", "Failed to open file for appending");
+    }
+  } else if (upload.status == UPLOAD_FILE_END) {
+    Serial.printf("Upload complete. Size: %u\n", upload.totalSize);
+    server.send(200, "text/plain", "File Uploaded Successfully");
+  }
+}
+
+
 
 void handleGetFiles() {
   String fileList = "<html><body><h1>Files on SD Card</h1><ul>";
@@ -214,5 +257,6 @@ void handleGetFiles() {
   fileList += "</ul></body></html>";
   server.send(200, "text/html", fileList);
 }
+
 
 ///-----------------
